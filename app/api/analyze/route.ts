@@ -10,6 +10,7 @@ import { connectDB } from "@/lib/mongodb";
 import {
   buildOptimizedPrompt,
   callGeminiWithFallback,
+  cleanAIJsonResponse,
 } from "@/lib/resumeAnalysis";
 import { Resume } from "@/models/Resume";
 
@@ -143,10 +144,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const cleanedResponse = responseText
-      .replace(/```json/g, "")
-      .replace(/```/g, "")
-      .trim();
+    const cleanedResponse = cleanAIJsonResponse(responseText);
 
     let parsedAI: AIResponse;
 

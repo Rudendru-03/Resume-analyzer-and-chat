@@ -6,17 +6,19 @@ import mammoth from "mammoth";
 import { extractText } from "unpdf";
 
 import { model as geminiModel } from "@/lib/gemini";
+import { connectDB } from "@/lib/mongodb";
 import {
-  buildJDMatchPrompt,
+  buildInterviewQuestionsPrompt,
   callGeminiWithFallback,
   cleanAIJsonResponse,
 } from "@/lib/resumeAnalysis";
+import { InterviewQuestion } from "@/models/InterviewQuestion";
 
-type JDMatchAIResponse = {
-  matchScore: number;
-  missingSkills: string[];
-  resumeSkills: string[];
-  jdSkills: string[];
+type InterviewAIResponse = {
+  technicalQuestions: string[];
+  projectQuestions: string[];
+  experienceQuestions: string[];
+  managerialQuestions: string[];
 };
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -51,24 +53,6 @@ async function extractTextFromFile(file: File): Promise<string> {
   return "";
 }
 
-function validateFile(file: File, label: string) {
-  if (file.size > MAX_FILE_SIZE) {
-    return NextResponse.json(
-      { error: `${label} file size exceeds 5MB limit` },
-      { status: 400 },
-    );
-  }
-
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    return NextResponse.json(
-      { error: `${label} must be a PDF, DOCX, or TXT file` },
-      { status: 400 },
-    );
-  }
-
-  return null;
-}
-
 function normalizeStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) {
     return [];
@@ -81,104 +65,66 @@ function normalizeStringArray(value: unknown): string[] {
 
 export async function POST(request: NextRequest) {
   try {
+    await connectDB();
+
     const formData = await request.formData();
-    const resume = formData.get("resume") as File | null;
-    const jd = formData.get("jd") as File | null;
-    const jdTextInput = formData.get("jdText");
-    const pastedJDText =
-      typeof jdTextInput === "string" ? jdTextInput.trim() : "";
+    const file = formData.get("file") as File | null;
 
-    if (!resume) {
+    if (!file) {
+      return NextResponse.json({ error: "No file uploaded" }, { status: 400 });
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
       return NextResponse.json(
-        { error: "No resume uploaded" },
+        { error: "File size exceeds 5MB limit" },
         { status: 400 },
       );
     }
 
-    if (!jd && !pastedJDText) {
+    if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json(
-        { error: "Please upload a JD file or paste the job description text" },
+        { error: "Only PDF, DOCX, and TXT files are supported" },
         { status: 400 },
       );
     }
 
-    const resumeValidationError = validateFile(resume, "Resume");
-
-    if (resumeValidationError) {
-      return resumeValidationError;
-    }
-
-    if (jd) {
-      const jdValidationError = validateFile(jd, "Job description");
-
-      if (jdValidationError) {
-        return jdValidationError;
-      }
-    }
-
-    let resumeText = "";
-    let jdText = pastedJDText;
+    let extractedText = "";
 
     try {
-      resumeText = await extractTextFromFile(resume);
-
-      if (jd) {
-        jdText = await extractTextFromFile(jd);
-      }
+      extractedText = await extractTextFromFile(file);
     } catch (extractError: any) {
       return NextResponse.json(
         {
-          error: "Failed to extract text from uploaded file",
+          error: "Failed to extract text from file",
           message: extractError?.message || "Unknown extraction error",
         },
         { status: 400 },
       );
     }
 
-    resumeText = resumeText.trim();
-    jdText = jdText.trim();
+    extractedText = extractedText.trim();
 
-    if (!resumeText) {
+    if (!extractedText) {
       return NextResponse.json(
         {
           error:
-            "Could not extract text from resume. The file might be empty or corrupted.",
+            "Could not extract text from file. The file might be empty or corrupted.",
         },
         { status: 400 },
       );
     }
 
-    if (!jdText) {
+    if (extractedText.length < 50) {
       return NextResponse.json(
         {
           error:
-            "Could not extract job description text. Please upload a valid JD file or paste the JD text.",
+            "Extracted text is too short. Please upload a valid resume with sufficient content.",
         },
         { status: 400 },
       );
     }
 
-    if (resumeText.length < 50) {
-      return NextResponse.json(
-        {
-          error:
-            "Resume text is too short. Please upload a valid resume with sufficient content.",
-        },
-        { status: 400 },
-      );
-    }
-
-    if (jdText.length < 30) {
-      return NextResponse.json(
-        {
-          error:
-            "Job description text is too short. Please provide sufficient JD content.",
-        },
-        { status: 400 },
-      );
-    }
-
-    const prompt = buildJDMatchPrompt(resumeText, jdText);
+    const prompt = buildInterviewQuestionsPrompt(extractedText);
     let responseText: string;
 
     try {
@@ -205,7 +151,7 @@ export async function POST(request: NextRequest) {
           error: "AI service is currently unavailable",
           message:
             geminiError?.message ||
-            "Failed to match resume with job description. Please try again later.",
+            "Failed to generate interview questions. Please try again later.",
         },
         { status: 503 },
       );
@@ -220,7 +166,7 @@ export async function POST(request: NextRequest) {
 
     const cleanedResponse = cleanAIJsonResponse(responseText);
 
-    let parsedAI: JDMatchAIResponse;
+    let parsedAI: InterviewAIResponse;
 
     try {
       parsedAI = JSON.parse(cleanedResponse);
@@ -242,15 +188,27 @@ export async function POST(request: NextRequest) {
     }
 
     const finalData = {
-      matchScore: Math.max(0, Math.min(100, Number(parsedAI.matchScore) || 0)),
-      missingSkills: normalizeStringArray(parsedAI.missingSkills),
-      resumeSkills: normalizeStringArray(parsedAI.resumeSkills),
-      jdSkills: normalizeStringArray(parsedAI.jdSkills),
+      fileName: file.name,
+      extractedText,
+      technicalQuestions: normalizeStringArray(parsedAI.technicalQuestions),
+      projectQuestions: normalizeStringArray(parsedAI.projectQuestions),
+      experienceQuestions: normalizeStringArray(parsedAI.experienceQuestions),
+      managerialQuestions: normalizeStringArray(parsedAI.managerialQuestions),
     };
 
-    return NextResponse.json(finalData, { status: 200 });
+    const savedInterviewQuestions = await InterviewQuestion.create({
+      ...finalData,
+      questions: [
+        ...finalData.technicalQuestions,
+        ...finalData.projectQuestions,
+        ...finalData.experienceQuestions,
+        ...finalData.managerialQuestions,
+      ],
+    });
+
+    return NextResponse.json(savedInterviewQuestions, { status: 201 });
   } catch (error: any) {
-    console.error("JD Match Error:", error);
+    console.error("Interview Questions Error:", error);
 
     return NextResponse.json(
       {

@@ -45,6 +45,35 @@ Job Description:
 ${truncatedJD}`;
 }
 
+export function buildInterviewQuestionsPrompt(resumeText: string): string {
+  const maxCharacters = 3500;
+  const truncatedResume =
+    resumeText.length > maxCharacters
+      ? resumeText.substring(0, maxCharacters) + "..."
+      : resumeText;
+
+  return `Interview Question Generator. Return ONLY strict JSON:
+{
+  "technicalQuestions": ["question1", "question2", "question3"],
+  "projectQuestions": ["question1", "question2", "question3"],
+  "experienceQuestions": ["question1", "question2", "question3"],
+  "managerialQuestions": ["question1", "question2", "question3"]
+}
+
+Rules: No markdown, no explanation, valid JSON only, no trailing commas. Write crisp, resume-specific questions. Use 3 questions per category. Technical questions must match listed skills. Project questions must reference resume projects. Experience questions must probe role history and achievements. Managerial questions must test ownership, communication, prioritization, and leadership.
+
+Resume:
+${truncatedResume}`;
+}
+
+export function cleanAIJsonResponse(responseText: string): string {
+  return responseText
+    .replace(/```json/g, "")
+    .replace(/```/g, "")
+    .trim()
+    .replace(/,\s*([}\]])/g, "$1");
+}
+
 async function exponentialBackoffWithJitter<T>(
   fn: () => Promise<T>,
   maxRetries: number = 4,

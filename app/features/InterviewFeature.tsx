@@ -7,6 +7,16 @@ export default function InterviewFeature() {
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const questionSections = [
+    { title: "Technical Questions", questions: result?.technicalQuestions },
+    { title: "Project Related Questions", questions: result?.projectQuestions },
+    {
+      title: "Experience Related Questions",
+      questions: result?.experienceQuestions,
+    },
+    { title: "Managerial Level Questions", questions: result?.managerialQuestions },
+  ];
+
   const generateQuestions = async () => {
     if (!file) return;
     setLoading(true);
@@ -15,7 +25,6 @@ export default function InterviewFeature() {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      // You need to implement this API route: /api/interview-questions
       const response = await fetch("/api/interview-questions", {
         method: "POST",
         body: formData,
@@ -59,13 +68,35 @@ export default function InterviewFeature() {
       {result && (
         <div className="w-full bg-white/80 rounded-xl p-5 mt-2 shadow-inner">
           <h3 className="text-xl font-bold text-blue-900 mb-2">Interview Questions</h3>
-          <ul className="list-decimal list-inside ml-4 text-gray-900">
-            {Array.isArray(result.questions)
-              ? result.questions.map((q: string, i: number) => (
-                  <li key={i}>{q}</li>
-                ))
-              : <li>{result.questions}</li>}
-          </ul>
+          {questionSections.some((section) => Array.isArray(section.questions)) ? (
+            <div className="space-y-4">
+              {questionSections.map((section) => (
+                <div key={section.title}>
+                  <h4 className="font-semibold text-blue-700 mb-1">
+                    {section.title}
+                  </h4>
+                  <ul className="list-decimal list-inside ml-4 text-gray-900">
+                    {Array.isArray(section.questions) &&
+                    section.questions.length > 0 ? (
+                      section.questions.map((q: string, i: number) => (
+                        <li key={i}>{q}</li>
+                      ))
+                    ) : (
+                      <li>No questions generated</li>
+                    )}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <ul className="list-decimal list-inside ml-4 text-gray-900">
+              {Array.isArray(result.questions)
+                ? result.questions.map((q: string, i: number) => (
+                    <li key={i}>{q}</li>
+                  ))
+                : <li>{result.questions}</li>}
+            </ul>
+          )}
         </div>
       )}
     </div>
