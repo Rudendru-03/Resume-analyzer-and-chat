@@ -2,6 +2,8 @@
 
 import { useState, Suspense, lazy } from "react";
 
+import { HeaderAuthControls } from "./components/HeaderAuthControls";
+
 const ATSFeature = lazy(() => import("./features/ATSFeature"));
 const JDMatchFeature = lazy(() => import("./features/JDMatchFeature"));
 const InterviewFeature = lazy(() => import("./features/InterviewFeature"));
@@ -38,14 +40,7 @@ export default function HomePage() {
               <p className="text-sm text-slate-500">AI Career Workspace</p>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex">
-            <button className="h-10 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">
-              Login
-            </button>
-            <button className="h-10 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white transition hover:bg-slate-800">
-              Sign up
-            </button>
-          </div>
+          <HeaderAuthControls />
           </div>
         </header>
 
