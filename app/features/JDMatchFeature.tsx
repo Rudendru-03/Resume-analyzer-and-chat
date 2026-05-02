@@ -4,20 +4,38 @@ import { useState } from "react";
 export default function JDMatchFeature() {
   const [resume, setResume] = useState<File | null>(null);
   const [jd, setJD] = useState<File | null>(null);
+  const [jdText, setJDText] = useState("");
+  const [jdInputMode, setJDInputMode] = useState<"file" | "text">("file");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   const uploadAndMatch = async () => {
-    if (!resume || !jd) return;
+    const trimmedJDText = jdText.trim();
+
+    if (
+      !resume ||
+      (jdInputMode === "file" && !jd) ||
+      (jdInputMode === "text" && !trimmedJDText)
+    ) {
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResult(null);
     const formData = new FormData();
     formData.append("resume", resume);
-    formData.append("jd", jd);
+
+    if (jdInputMode === "file" && jd) {
+      formData.append("jd", jd);
+    }
+
+    if (jdInputMode === "text") {
+      formData.append("jdText", trimmedJDText);
+    }
+
     try {
-      // You need to implement this API route: /api/jd-match
       const response = await fetch("/api/jd-match", {
         method: "POST",
         body: formData,
@@ -34,6 +52,20 @@ export default function JDMatchFeature() {
     setLoading(false);
   };
 
+  const hasJDInput =
+    jdInputMode === "file" ? Boolean(jd) : Boolean(jdText.trim());
+
+  const selectJDInputMode = (mode: "file" | "text") => {
+    setJDInputMode(mode);
+    setError(null);
+
+    if (mode === "file") {
+      setJDText("");
+    } else {
+      setJD(null);
+    }
+  };
+
   return (
     <div className="w-full flex flex-col items-center">
       <div className="flex flex-col md:flex-row gap-4 w-full mb-6">
@@ -47,20 +79,49 @@ export default function JDMatchFeature() {
             disabled={loading}
           />
         </label>
-        <label className="flex-1 flex flex-col items-center gap-2">
+        <div className="flex-1 flex flex-col items-center gap-3">
           <span className="text-white text-base font-semibold">Upload Job Description (JD):</span>
-          <input
-            className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-400 file:to-fuchsia-500 file:text-white hover:file:from-blue-500 hover:file:to-fuchsia-600 transition-all bg-white/20 rounded-lg p-2 text-white w-full max-w-xs focus:outline-none"
-            type="file"
-            accept=".pdf,.docx,.txt"
-            onChange={(e) => setJD(e.target.files?.[0] || null)}
-            disabled={loading}
-          />
-        </label>
+          <div className="grid grid-cols-2 w-full max-w-xs rounded-full bg-white/15 p-1">
+            <button
+              type="button"
+              onClick={() => selectJDInputMode("file")}
+              disabled={loading}
+              className={`rounded-full py-2 text-sm font-semibold text-white transition-all disabled:opacity-50 ${jdInputMode === "file" ? "bg-gradient-to-r from-blue-400 to-fuchsia-500 shadow-md" : "hover:bg-white/15"}`}
+            >
+              Upload File
+            </button>
+            <button
+              type="button"
+              onClick={() => selectJDInputMode("text")}
+              disabled={loading}
+              className={`rounded-full py-2 text-sm font-semibold text-white transition-all disabled:opacity-50 ${jdInputMode === "text" ? "bg-gradient-to-r from-blue-400 to-fuchsia-500 shadow-md" : "hover:bg-white/15"}`}
+            >
+              Paste Text
+            </button>
+          </div>
+          {jdInputMode === "file" ? (
+            <input
+              key="jd-file"
+              className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-400 file:to-fuchsia-500 file:text-white hover:file:from-blue-500 hover:file:to-fuchsia-600 transition-all bg-white/20 rounded-lg p-2 text-white w-full max-w-xs focus:outline-none"
+              type="file"
+              accept=".pdf,.docx,.txt"
+              onChange={(e) => setJD(e.target.files?.[0] || null)}
+              disabled={loading}
+            />
+          ) : (
+            <textarea
+              className="bg-white/20 rounded-lg p-3 text-white placeholder:text-white/70 w-full max-w-xs min-h-32 resize-y focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50"
+              placeholder="Paste job description text here"
+              value={jdText}
+              onChange={(e) => setJDText(e.target.value)}
+              disabled={loading}
+            />
+          )}
+        </div>
       </div>
       <button
         onClick={uploadAndMatch}
-        disabled={!resume || !jd || loading}
+        disabled={!resume || !hasJDInput || loading}
         className="w-full max-w-xs py-3 px-6 rounded-full bg-gradient-to-r from-fuchsia-500 to-blue-400 text-white font-bold text-lg shadow-lg hover:from-fuchsia-600 hover:to-blue-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-4"
       >
         {loading ? "Matching..." : "Match Resume to JD"}

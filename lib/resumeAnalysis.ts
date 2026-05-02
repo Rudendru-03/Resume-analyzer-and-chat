@@ -17,6 +17,34 @@ Resume:
 ${truncatedText}`;
 }
 
+export function buildJDMatchPrompt(resumeText: string, jdText: string): string {
+  const maxCharacters = 3000;
+  const truncatedResume =
+    resumeText.length > maxCharacters
+      ? resumeText.substring(0, maxCharacters) + "..."
+      : resumeText;
+  const truncatedJD =
+    jdText.length > maxCharacters
+      ? jdText.substring(0, maxCharacters) + "..."
+      : jdText;
+
+  return `Resume and Job Description Matcher. Return ONLY JSON:
+{
+  "matchScore": 0-100,
+  "missingSkills": ["skill1", "skill2"],
+  "resumeSkills": ["skill1", "skill2"],
+  "jdSkills": ["skill1", "skill2"]
+}
+
+Rules: No markdown, no explanation, valid JSON only. Compare the resume against the job description and score how closely the resume matches the JD.
+
+Resume:
+${truncatedResume}
+
+Job Description:
+${truncatedJD}`;
+}
+
 async function exponentialBackoffWithJitter<T>(
   fn: () => Promise<T>,
   maxRetries: number = 4,
