@@ -101,10 +101,6 @@ async function exponentialBackoffWithJitter<T>(
       const jitter = Math.random() * 500;
       const totalDelay = exponentialDelay + jitter;
 
-      console.log(
-        `Rate limit hit. Retrying in ${(totalDelay / 1000).toFixed(2)}s (attempt ${attempt}/${maxRetries})...`,
-      );
-
       await new Promise((resolve) => setTimeout(resolve, totalDelay));
     }
   }
@@ -129,8 +125,6 @@ export async function callGeminiWithFallback(
     if (!fallbackModel) {
       throw primaryError;
     }
-
-    console.log("Falling back to Flash-Lite model...");
 
     try {
       const fallbackResult = await exponentialBackoffWithJitter(
